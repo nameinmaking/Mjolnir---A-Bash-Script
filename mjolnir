@@ -1,0 +1,177 @@
+#!/bin/bash
+
+# cconvert--Given an amount and base currency, converts it to
+# the specified target currency using ISO currency identifiers.
+
+# Uses Google's finance convertor for the heavy lifting:
+# https://www.google.com/fianance/converter1&from=USD&to=INR
+
+usage()
+{
+	bold=$(tput bold)
+	normal=$(tput sgr0)
+	
+	# http://patorjk.com/software/taag/#p=display&h=0&v=2&f=ANSI%20Shadow&t=Mjolnir
+	echo " 
+
+███╗   ███╗     ██╗ ██████╗ ██╗     ███╗   ██╗██╗██████╗
+████╗ ████║     ██║██╔═══██╗██║     ████╗  ██║██║██╔══██╗
+██╔████╔██║     ██║██║   ██║██║     ██╔██╗ ██║██║██████╔╝
+██║╚██╔╝██║██   ██║██║   ██║██║     ██║╚██╗██║██║██╔══██╗
+██║ ╚═╝ ██║╚█████╔╝╚██████╔╝███████╗██║ ╚████║██║██║  ██║
+╚═╝     ╚═╝ ╚════╝  ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝
+
+The mighty hammer ${bold}Mjolnir${normal}, forged in the heart of a dying star. Its power has no equal, as a weapon to destroy or as a tool to build. It is a fit companion for a king.
+
+"
+	echo "How to use?"
+	echo -e "\t Use argument ${bold}-c ${normal} for the Currency Coversion Utility"
+    echo -e	"\t Use argument ${bold}-w ${normal} for Weather Utility"
+	echo  -e "\t Use argument ${bold}-k ${normal} for Reminder Utility and ${bold}-f ${normal} to fetch the reminders"
+	echo -e "\t Use argument ${bold}-i ${normal} for .tar.gz Files Instalation Utility\n"
+	echo -e "\t Use argument ${bold}-g ${normal} for GitHub Utility\n"
+    echo -e "\t Use argument ${bold}-n ${normal} for News Utility\n"
+
+
+	
+    echo "Syntax:  ${bold}$(basename $0) -c AMOUNT BASE_CURRENCY to TARGET_CURRENCY${normal}"
+	printf "Example: ${bold}$(basename $0) -c 100 USD to INR ${normal}\n"
+	printf "\nSyntax:  ${bold}$(basename $0) -w CITY_NAME MEASUREMENT_UNIT ${normal} [m=metric / u=U.S. | defaults: city=Boston, Unit=Metric]\n"
+	echo "Example: ${bold}$(basename $0) -w Delhi m ${normal}"
+	printf "\nSyntax:  ${bold}$(basename $0) -k MESSAGE${normal}\n"
+	printf "Example: ${bold}$(basename $0) -k Air India Flight AI127${normal}\n\n"
+	printf "\nSyntax:  ${bold}$(basename $0) -f TEXT_TO_SEARCH${normal}\n"
+    printf "Example: ${bold}$(basename $0) -k 127${normal}\n\n"
+	printf "\nSyntax:  ${bold}$(basename $0) -i TAR_FILE${normal}\n"
+    printf "Example: ${bold}$(basename $0) -i jre-8u73-linux-x64.tar.gz${normal}\n"
+	printf "\nSyntax:  ${bold}$(basename $0) -g GIT_COMMIT_MESSAGE${normal}\n"
+    printf "Example: ${bold}$(basename $0) -g \"repo init\"${normal}\n"
+	printf "\nSyntax:  ${bold}$(basename $0) -n ${normal}\n"
+    printf "Example: ${bold}$(basename $0) -n${normal}\n"
+}
+
+#intializations
+
+city="Boston"
+unit="m"
+keepfile="$HOME/.keep"
+
+# News colors
+header_color="\e[1;32m"
+title_color="\e[1;31m"
+link_color="\e[1;37m"
+
+# As google finance has stopped working, solution https://stackoverflow.com/questions/49324112/google-finance-converter-stopped-working-or-changed-its-url/49324537
+url="https://finance.google.co.uk/bctzjpnsun/converter"
+tempfile="/tmp/converter.$$"
+
+# lynx is the CLI web browser for Linux (most popular)
+lynx=$(which lynx)
+
+case "$1" in
+	"-c") # Convert currencies
+		printf "${header_color}   --- $(basename $0) Currency Converter ---\e[0m\n"
+		if [ "$4" != "to" ] || [ $# -eq 1 ] ; then
+			# ask user to use the correct sytax for using the script ("to")
+			usage currency
+			exit 0
+		else
+			# Main Calculations
+			# fetching paramters entered by the user
+			amount=$2
+			basecurr="$(echo $3 | tr '[:lower:]' '[:upper:]')"
+			targetcurr="$(echo $5 | tr '[:lower:]' '[:upper:]')"
+
+			# query using lynx
+			$lynx -source "$url?a=$amount&from=$basecurr&to=$targetcurr" | \
+			  grep 'id=currency_converter_result' | sed 's/<[^>]*>//g'
+
+			exit 0
+		fi ;;
+
+	"-w") # Display Weather
+		printf "${header_color}   --- Your Weather Report ---\e[0m\n"
+		# https://askubuntu.com/questions/444082/how-to-check-if-1-and-2-are-null
+		echo "in Weather"
+		# No arguments are passed; defaults
+ 		if [ -z "$2" ] && [ -z "$3" ] ; then
+			city="Boston"
+			unit="m"
+			# Only City is passed
+		elif [ -z "$3" ] ; then
+			city=$2
+			# City and Unit both are passed
+		else
+			city=$2
+			unit=$3
+		fi
+		curl wttr.in/$city?$unit
+		;;
+	"-k") # The reminder assistant
+		printf "${header_color}   --- Reminders! ---\e[0m\n"
+		if [ -z "$2" ] ; then
+			echo "Enter your note, [end it with ^D]: "
+			cat - >> $keepfile
+		else
+			# Append any arguemnt passed for remember on the .keep file
+			echo "${@:2}" >> $keepfile
+		fi 
+		exit 0 ;;
+	"-f") # Fetch the reminders
+			printf "${header_color}   --- Your Reminders! ---\e[0m\n"
+			if [ ! -f $rememberfile ] ; then
+				echo "$0: You don't seem to have a .keep file." >&2
+				echo "To remedy this, please use '${bold}-k ${normal}' to add reminders" >&2
+				exit 1
+			fi
+			
+			if [ -z $2 ] ; then
+				# Display the whole rememberfile when not given any search criteria.
+				more $keepfile
+			else
+				# Otherwise, search through the file for the given terms, and display
+				# the results neatly.
+				grep -i -- "${@:2}" $keepfile | ${PAGER:-more}
+			fi
+
+		exit 0 ;;
+	"-i") #install a .tar.gz filie
+		printf "${header_color}   --- Installing the $2 file ---\e[0m\n"
+		gunzip "$2"
+		case $2 in
+			*.gz) file=${2%.gz} ;; # If the entered file has no extension
+			*.tgz) file=${2%.tgz}.tar ;; # File will have .tar extension
+		esac
+
+		# Placing the path to the extracted files in the positional parameters
+		set -- $(tar -xvf "$file")
+
+		# The first positional parameter will contain the name of the directory,
+		# so cd into it, and configure and compile the program
+
+		cd $1 && ./configure && make && sudo make install
+		exit 0 ;;
+	"-g") # Git commit
+		git pull
+		git add .
+		git commit -am "$2"
+		git push origin master
+		exit 0 ;;
+	"-n") #News
+		printf "${header_color}   --- YAHOO! NEWS ---\e[0m\n"
+		curl -s "https://www.yahoo.com/news/rss/" 2> /tmp/error |
+		    	grep -Eio "<item>.*</item>" |
+		    	grep -Eio "<(title|link)>[^<>]*</(title|link)>" |
+		    	sed -Ee "s/<title>([^<>]*)<\/title>/`printf $title_color}`\1/" \
+		  	-e "s/<link>([^<>]*)<\/link>/`printf ${link_color}`\1/" \
+		  	-e "s/&#x2F;/\//g" \
+		  	-e "s/&#x27;/'/g" |
+		    	head -n 15
+	      
+		printf "\033[0m\n"
+		exit 0 ;;
+	*) # Any other scenarios
+		usage
+		exit 0 ;;
+esac
+
